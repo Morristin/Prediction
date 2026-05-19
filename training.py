@@ -56,6 +56,8 @@ class TorchTrainer:
         self.training_data, self.test_data = None, None
         self.train_dataloader, self.test_dataloader = None, None
 
+        self.model = None
+
     def load_data(self, file: str, /, sliding_window_size: int = SLIDING_WINDOW_SIZE):
         """
         Detect and calculate tensor data from CSV file.
@@ -119,6 +121,10 @@ class TorchTrainer:
         self.training_data, self.test_data = PriceDataset(training_data), PriceDataset(test_data)
         logging.info('Created training and testing Dataset.')
 
+    def load_model(self, file: str):
+        self.model = PricePredictNeuralNetwork().to(self.device)
+        self.model.load_state_dict(torch.load(file, weights_only=True))
+
     def load_dataset(self):
         self.train_dataloader = DataLoader(self.training_data, batch_size=32)
         self.test_dataloader = DataLoader(self.test_data, batch_size=32)
@@ -127,10 +133,10 @@ class TorchTrainer:
     # noinspection PyPep8Naming
     def train(self):
         # Predefine arguments model, loss_function and optimizer.
-        model = PricePredictNeuralNetwork().to(self.device)
+        self.model = PricePredictNeuralNetwork().to(self.device)
         logging.info(f'Move neural network model into device: {self.device.type}')
         loss_function = torch.nn.MSELoss()
-        optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-3)
 
         # Initialize a new logger for training process visibility.
         from tools import create_logger
@@ -143,13 +149,13 @@ class TorchTrainer:
             train_logger.info(f'Epoch {epoch + 1}: \n' + '-' * 20)
 
             # Model train loop.
-            model.train()
+            self.model.train()
             train_data_size = len(self.train_dataloader.dataset)
             for batch, (X, y) in enumerate(self.train_dataloader):
                 X, y = X.to(self.device), y.to(self.device)
 
                 # Compute prediction error
-                prediction = model(X)
+                prediction = self.model(X)
                 loss = loss_function(prediction, y.unsqueeze(1))
 
                 # Backpropagation
@@ -162,11 +168,14 @@ class TorchTrainer:
                     train_logger.info(f'Loss: {loss.item():>7f}  [{(batch + 1) * len(X):>5d}/{train_data_size:>5d}]')
 
             # Check the model’s performance to ensure it is learning.
-            model.eval()
+            self.model.eval()
             num_batches, test_loss = len(self.test_dataloader), 0
             with torch.no_grad():
                 for X, y in self.test_dataloader:
                     X, y = X.to(self.device), y.to(self.device)
-                    prediction = model(X)
+                    prediction = self.model(X)
                     test_loss += loss_function(prediction, y).item()
             train_logger.info(f'Test average loss: {test_loss / num_batches:>7f}.\n')
+
+    def store(self, file: str = 'model.pth'):
+        torch.save(self.model.state_dict(), file)

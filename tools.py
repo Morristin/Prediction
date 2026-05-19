@@ -38,9 +38,22 @@ def load_data(data_source: str, sliding_window_size: int) -> dict[str, list[tupl
             self._min_price = min(price, self._min_price) if self._min_price is not None else price
 
         def normalization_data(self, window_size: int) -> list[tuple[list[float], float]]:
-            """:return: The normalization result of training data in sliding window format."""
+            """
+            The list this function returns is a custom class which directly integrated from `list`,
+            which contains two special attributes: `max_value` and `min_value`.
+
+            :param window_size: The size of sliding window.
+            :return: A custom list which stores normalization result of training data in sliding window format.
+            """
+
+            class PriceList(list):
+                def __init__(self, samples, max_value: float, min_value: float):
+                    super().__init__(samples)
+                    self.max_value, self.min_value = max_value, min_value
+
             prices = [(price - self._min_price) / (self._max_price - self._min_price) for price in self.prices]
-            return [(prices[index - window_size - 1 : -1], prices[-1]) for index in range(window_size, len(prices))]
+            sample = ((prices[index - window_size - 1 : -1], prices[-1]) for index in range(window_size, len(prices)))
+            return PriceList(sample, self._max_price, self._min_price)
 
     # Special treat the first line of data. Make sure arguments are assigned before used.
     name: str = table[1][data_index['name']]

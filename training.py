@@ -59,6 +59,13 @@ class PriceDataset(Dataset):
                 self.training_data += data_subset.training_data(sliding_window_size=self.SLIDING_WINDOW_SIZE)
                 name, data_subset = data[data_index['name']], TrainingDataSubset()
 
+    def __len__(self):
+        return len(self.training_data)
+
+    def __getitem__(self, index) -> tuple[torch.Tensor, torch.Tensor]:
+        x, y = self.training_data[index]
+        return torch.tensor(x, dtype=torch.float32), torch.tensor(y, dtype=torch.float32)
+
 
 class TorchTrainer:
     # noinspection PyUnresolvedReferences

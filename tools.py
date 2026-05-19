@@ -51,7 +51,10 @@ def load_data(data_source: str, sliding_window_size: int) -> dict[str, list[tupl
                     super().__init__(samples)
                     self.max_value, self.min_value = max_value, min_value
 
-            prices = [(price - self._min_price) / (self._max_price - self._min_price) for price in self.prices]
+            if self._max_price != self._min_price:
+                prices = [(price - self._min_price) / (self._max_price - self._min_price) for price in self.prices]
+            else:  # Special treat: regard every data as 0.5.
+                prices = [0.5 for price in self.prices]
             sample = ((prices[index - window_size - 1 : -1], prices[-1]) for index in range(window_size, len(prices)))
             return PriceList(sample, self._max_price, self._min_price)
 

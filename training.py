@@ -56,7 +56,7 @@ class TorchTrainer:
         self.training_data, self.test_data = None, None
         self.train_dataloader, self.test_dataloader = None, None
 
-        self.model = None
+        self.model = PricePredictNeuralNetwork().to(self.device)
 
     def load_data(self, file: str, /, sliding_window_size: int = SLIDING_WINDOW_SIZE):
         """
@@ -122,7 +122,6 @@ class TorchTrainer:
         logging.info('Created training and testing Dataset.')
 
     def load_model(self, file: str):
-        self.model = PricePredictNeuralNetwork().to(self.device)
         self.model.load_state_dict(torch.load(file, weights_only=True))
 
     def load_dataset(self):
@@ -133,7 +132,6 @@ class TorchTrainer:
     # noinspection PyPep8Naming
     def train(self):
         # Predefine arguments model, loss_function and optimizer.
-        self.model = PricePredictNeuralNetwork().to(self.device)
         logging.info(f'Move neural network model into device: {self.device.type}')
         loss_function = torch.nn.MSELoss()
         optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-3)
@@ -179,3 +177,19 @@ class TorchTrainer:
 
     def store(self, file: str = 'model.pth'):
         torch.save(self.model.state_dict(), file)
+
+    # noinspection PyPep8Naming
+    def evaluate(self) -> tuple[float, float]:
+        self.model.eval()
+        predictions, targets = list(), list()
+
+        with torch.no_grad():
+            for X, y in self.test_dataloader:
+                X, y = X.to(self.device), y.to(self.device)
+                predictions.append(self.model(X))
+                targets.append(y.unsqueeze(1))
+
+        mean_absolute_error = torch.mean(torch.abs(torch.cat(predictions) - torch.cat(targets))).item()
+        root_mean_absolute_error = torch.sqrt(torch.mean((torch.cat(predictions) - torch.cat(targets)) ** 2)).item()
+
+        return mean_absolute_error, root_mean_absolute_error

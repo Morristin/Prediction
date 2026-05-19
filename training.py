@@ -41,6 +41,7 @@ class PricePredictNeuralNetwork(torch.nn.Module):
 class TorchTrainer:
     SLIDING_WINDOW_SIZE = 30
     TRAINING_AND_TEST_SPLIT_POINT = 0.8
+    EPOCHS = 5
 
     # noinspection PyUnresolvedReferences
     def __init__(self):
@@ -68,7 +69,9 @@ class TorchTrainer:
 
         training_data: list[tuple[list[float], float]] = list()
         test_data: list[tuple[list[float], float]] = list()
+
         table = open(file, 'r').readlines()
+        logging.info(f'Read table from file: {file}')
 
         # Process the column header of CSV file.
         column_header = tuple(unit.strip().lower() for unit in table[0].split(','))
@@ -109,32 +112,47 @@ class TorchTrainer:
                 training_data += normalization_data[:split_point]
                 test_data += normalization_data[split_point:]
 
-                # Reinitialize the arguments for next loop.
+                # Record logs and reinitialize the arguments for next loop.
+                logging.debug(f'Finish loading the prices data of {name}.')
                 name, data_subset = data[data_index['name']], TrainingDataSubset()
 
         self.training_data, self.test_data = PriceDataset(training_data), PriceDataset(test_data)
+        logging.info('Created training and testing Dataset.')
 
     def load_dataset(self):
         self.train_dataloader = DataLoader(self.training_data, batch_size=32)
         self.test_dataloader = DataLoader(self.test_data, batch_size=32)
+        logging.info('Created training and testing DataLoader from Dataset.')
 
     # noinspection PyPep8Naming
     def train(self):
         # Predefine arguments model, loss_function and optimizer.
         model = PricePredictNeuralNetwork().to(self.device)
+        logging.info(f'Move neural network model into device: {self.device.type}')
         loss_function = torch.nn.MSELoss()
         optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
-        # Model train loop. Please refer to train function in official documents.
-        model.train()
-        for batch, (X, y) in enumerate(self.train_dataloader):
-            X, y = X.to(self.device), y.to(self.device)
+        for epoch in range(self.EPOCHS):
+            # Model train loop.
+            model.train()
+            for batch, (X, y) in enumerate(self.train_dataloader):
+                X, y = X.to(self.device), y.to(self.device)
 
-            # Compute prediction error
-            prediction = model(X)
-            loss = loss_function(prediction, y.unsqueeze(1))
+                # Compute prediction error
+                prediction = model(X)
+                loss = loss_function(prediction, y.unsqueeze(1))
 
-            # Backpropagation
-            loss.backward()
-            optimizer.step()
-            optimizer.zero_grad()
+                # Backpropagation
+                loss.backward()
+                optimizer.step()
+                optimizer.zero_grad()
+
+            # Check the model’s performance to ensure it is learning.
+            model.eval()
+            num_batches, test_loss = len(self.test_dataloader), 0
+            with torch.no_grad():
+                for X, y in self.test_dataloader:
+                    X, y = X.to(self.device), y.to(self.device)
+                    prediction = model(X)
+                    test_loss += loss_function(prediction, y).item()
+            test_loss /= num_batches

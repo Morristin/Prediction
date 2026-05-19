@@ -132,9 +132,19 @@ class TorchTrainer:
         loss_function = torch.nn.MSELoss()
         optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
+        # Initialize a new logger for training process visibility.
+        from tools import create_logger
+
+        train_logger = create_logger('training_process')
+        OUTPUT_FREQUENCY = 1000
+
+        # Train model over several epochs for better predictions.
         for epoch in range(self.EPOCHS):
+            train_logger.info(f'Epoch {epoch + 1}: \n' + '-' * 20)
+
             # Model train loop.
             model.train()
+            train_data_size = len(self.train_dataloader.dataset)
             for batch, (X, y) in enumerate(self.train_dataloader):
                 X, y = X.to(self.device), y.to(self.device)
 
@@ -147,6 +157,10 @@ class TorchTrainer:
                 optimizer.step()
                 optimizer.zero_grad()
 
+                # Show training process
+                if batch % OUTPUT_FREQUENCY == 0:
+                    train_logger.info(f'Loss: {loss.item():>7f}  [{(batch + 1) * len(X):>5d}/{train_data_size:>5d}]')
+
             # Check the model’s performance to ensure it is learning.
             model.eval()
             num_batches, test_loss = len(self.test_dataloader), 0
@@ -155,4 +169,4 @@ class TorchTrainer:
                     X, y = X.to(self.device), y.to(self.device)
                     prediction = model(X)
                     test_loss += loss_function(prediction, y).item()
-            test_loss /= num_batches
+            train_logger.info(f'Test average loss: {test_loss / num_batches:>7f}.\n')

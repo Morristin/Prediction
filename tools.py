@@ -55,7 +55,11 @@ def load_data(data_source: str, sliding_window_size: int) -> dict[str, list[tupl
                 prices = [(price - self._min_price) / (self._max_price - self._min_price) for price in self.prices]
             else:  # Special treat: regard every data as 0.5.
                 prices = [0.5 for price in self.prices]
-            sample = ((prices[index - window_size - 1 : -1], prices[-1]) for index in range(window_size, len(prices)))
+
+            sample = (
+                (prices[index - window_size - 1 : index - 1], prices[index])
+                for index in range(window_size + 1, len(prices))
+            )
             return PriceList(sample, self._max_price, self._min_price)
 
     # Special treat the first line of data. Make sure arguments are assigned before used.
@@ -66,7 +70,7 @@ def load_data(data_source: str, sliding_window_size: int) -> dict[str, list[tupl
         if data[data_index['name']] == name:
             # TODO: Check the date and create lack data using linear interpolation.
             data_subset.add(float(data[data_index['price']]))
-        elif len(data_subset) > sliding_window_size:
+        elif len(data_subset) > sliding_window_size + 2:
             dataset[name] = data_subset.normalization_data(sliding_window_size)
             logging.debug(f'Finish loading the prices data of {name}.')
             name, data_subset = data[data_index['name']], TrainingDataSubset()

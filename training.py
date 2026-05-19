@@ -117,3 +117,24 @@ class TorchTrainer:
     def load_dataset(self):
         self.train_dataloader = DataLoader(self.training_data, batch_size=32)
         self.test_dataloader = DataLoader(self.test_data, batch_size=32)
+
+    # noinspection PyPep8Naming
+    def train(self):
+        # Predefine arguments model, loss_function and optimizer.
+        model = PricePredictNeuralNetwork().to(self.device)
+        loss_function = torch.nn.MSELoss()
+        optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+
+        # Model train loop. Please refer to train function in official documents.
+        model.train()
+        for batch, (X, y) in enumerate(self.train_dataloader):
+            X, y = X.to(self.device), y.to(self.device)
+
+            # Compute prediction error
+            prediction = model(X)
+            loss = loss_function(prediction, y.unsqueeze(1))
+
+            # Backpropagation
+            loss.backward()
+            optimizer.step()
+            optimizer.zero_grad()

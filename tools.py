@@ -66,9 +66,12 @@ def load_data(data_source: str, sliding_window_size: int) -> dict[str, list[tupl
         if data[data_index['name']] == name:
             # TODO: Check the date and create lack data using linear interpolation.
             data_subset.add(float(data[data_index['price']]))
-        else:
+        elif len(data_subset) > sliding_window_size:
             dataset[name] = data_subset.normalization_data(sliding_window_size)
             logging.debug(f'Finish loading the prices data of {name}.')
+            name, data_subset = data[data_index['name']], TrainingDataSubset()
+        else:
+            logging.warning(f'The number of prices data of {name} is less than sliding window size.')
             name, data_subset = data[data_index['name']], TrainingDataSubset()
 
     return dataset

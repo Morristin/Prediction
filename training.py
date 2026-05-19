@@ -1,7 +1,7 @@
 import logging
 
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import DataLoader, Dataset
 
 logging.getLogger(__name__)
 
@@ -33,6 +33,7 @@ class TorchTrainer:
             self.device: torch.device = torch.device('cpu')
 
         self.training_data, self.test_data = None, None
+        self.train_dataloader, self.test_dataloader = None, None
 
     def load_data(self, file: str, /, sliding_window_size: int = SLIDING_WINDOW_SIZE):
         """
@@ -92,3 +93,7 @@ class TorchTrainer:
                 name, data_subset = data[data_index['name']], TrainingDataSubset()
 
         self.training_data, self.test_data = PriceDataset(training_data), PriceDataset(test_data)
+
+    def load_dataset(self):
+        self.train_dataloader = DataLoader(self.training_data, batch_size=32)
+        self.test_dataloader = DataLoader(self.test_data, batch_size=32)

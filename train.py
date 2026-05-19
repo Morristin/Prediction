@@ -38,12 +38,7 @@ class PricePredictNeuralNetwork(torch.nn.Module):
         return self.linear(self.lstm(x)[0][:, -1, :])
 
 
-class TorchTrainer:
-    SLIDING_WINDOW_SIZE = 30
-    TRAINING_AND_TEST_SPLIT_POINT = 0.8
-    EPOCHS = 5
-
-    # noinspection PyUnresolvedReferences
+class Model:
     def __init__(self):
         accelerator = torch.accelerator.current_accelerator()
         if accelerator is not None:
@@ -53,74 +48,40 @@ class TorchTrainer:
             logging.warning('Can not detect any accelerator, use CPU to train model.')
             self.device: torch.device = torch.device('cpu')
 
-        self.training_data, self.test_data = None, None
-        self.train_dataloader, self.test_dataloader = None, None
-
         self.model = PricePredictNeuralNetwork().to(self.device)
 
-    def load_model(self, file: str):
+    def load_state(self, file: str):
         self.model.load_state_dict(torch.load(file, weights_only=True))
         logging.info(f'Loaded model state dict from {file}.')
 
+    def save_state(self, file: str = 'model.pth'):
+        torch.save(self.model.state_dict(), file)
+        logging.info(f'Saved model state dict to {file}.')
+
+
+class TorchTrainer(Model):
+    SLIDING_WINDOW_SIZE = 30
+    TRAINING_AND_TEST_SPLIT_POINT = 0.8
+    EPOCHS = 5
+
+    def __init__(self):
+        super().__init__()
+
+        self.training_data, self.test_data = None, None
+        self.train_dataloader, self.test_dataloader = None, None
+
     def create_dataset(self, data_source: str, /, sliding_window_size: int = SLIDING_WINDOW_SIZE):
-        """
-        Detect and calculate tensor data from CSV file.
+        from tools import load_data
 
-        **This function would not handle exceptions**.
-        Callers need to handle exceptions themselves or make sure source file is valid.
-
-        :param data_source: A CSV file which column header contains `name`, `price` and `date`.
-        :param sliding_window_size: The size of sliding window when split data into units.
-        """
+        dataset = load_data(data_source, sliding_window_size)
 
         training_data: list[tuple[list[float], float]] = list()
         test_data: list[tuple[list[float], float]] = list()
 
-        table = open(data_source, 'r').readlines()
-        logging.info(f'Read table from file: {data_source}')
-
-        # Process the column header of CSV file.
-        column_header = tuple(unit.strip().lower() for unit in table[0].split(','))
-        data_index = {detect_part: column_header.index(detect_part) for detect_part in ('name', 'price', 'date')}
-
-        # Convert all data using sliding window method.
-        class TrainingDataSubset:
-            def __init__(self):
-                self.prices: list[float] = list()
-                self._max_price, self._min_price = None, None
-
-            def __len__(self):
-                return len(self.prices)
-
-            def add(self, price: float):
-                self.prices.append(price)
-                self._max_price = max(price, self._max_price) if self._max_price is not None else price
-                self._min_price = min(price, self._min_price) if self._min_price is not None else price
-
-            def normalization_data(self, window_size: int) -> list[tuple[list[float], float]]:
-                """:return: The normalization result of training data in sliding window format."""
-                prices = [(price - self._min_price) / (self._max_price - self._min_price) for price in self.prices]
-                return [(prices[index - window_size - 1 : -1], prices[-1]) for index in range(window_size, len(prices))]
-
-        # Special treat the first line of data. Make sure arguments are assigned before used.
-        name: str = table[1][data_index['name']]
-        data_subset: TrainingDataSubset = TrainingDataSubset()
-        for data in table[1:]:
-            data = tuple(unit.strip() for unit in data.split(','))
-
-            if data[data_index['name']] == name:
-                # TODO: Check the date and create lack data using linear interpolation.
-                data_subset.add(float(data[data_index['price']]))
-            else:
-                # Calculate split point to split training data and test data.
-                split_point: int = int(len(data_subset) * self.TRAINING_AND_TEST_SPLIT_POINT)
-                normalization_data = data_subset.normalization_data(sliding_window_size)
-                training_data += normalization_data[:split_point]
-                test_data += normalization_data[split_point:]
-
-                # Record logs and reinitialize the arguments for next loop.
-                logging.debug(f'Finish loading the prices data of {name}.')
-                name, data_subset = data[data_index['name']], TrainingDataSubset()
+        for _, data in dataset:
+            split_point: int = int(len(data) * self.TRAINING_AND_TEST_SPLIT_POINT)
+            training_data += data[:split_point]
+            test_data += data[split_point:]
 
         self.training_data, self.test_data = PriceDataset(training_data), PriceDataset(test_data)
         logging.info('Created training and testing Dataset.')
@@ -191,7 +152,3 @@ class TorchTrainer:
         root_mean_absolute_error = torch.sqrt(torch.mean((torch.cat(predictions) - torch.cat(targets)) ** 2)).item()
 
         return mean_absolute_error, root_mean_absolute_error
-
-    def save_model(self, file: str = 'model.pth'):
-        torch.save(self.model.state_dict(), file)
-        logging.info(f'Saved model state dict to {file}.')

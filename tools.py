@@ -1,5 +1,62 @@
 import logging
 
+logging.getLogger(__name__)
+
+
+def load_data(data_source: str, sliding_window_size: int) -> dict[str, list[tuple[list[float], float]]]:
+    """
+    Detect and calculate tensor data from CSV file.
+
+    **This function would not handle exceptions**.
+    Callers need to handle exceptions themselves or make sure source file is valid.
+
+    :param data_source: A CSV file which column header contains `name`, `price` and `date`.
+    :param sliding_window_size: The size of sliding window when split data into units.
+    """
+    dataset: dict[str, list[tuple[list[float], float]]] = dict()
+
+    # Read source data from specific CSV file.
+    table = open(data_source, 'r').readlines()
+    logging.info(f'Read table from file: {data_source}')
+
+    # Process the column header of CSV file.
+    column_header = tuple(unit.strip().lower() for unit in table[0].split(','))
+    data_index = {detect_part: column_header.index(detect_part) for detect_part in ('name', 'price', 'date')}
+
+    # Convert all data using sliding window method.
+    class TrainingDataSubset:
+        def __init__(self):
+            self.prices: list[float] = list()
+            self._max_price, self._min_price = None, None
+
+        def __len__(self):
+            return len(self.prices)
+
+        def add(self, price: float):
+            self.prices.append(price)
+            self._max_price = max(price, self._max_price) if self._max_price is not None else price
+            self._min_price = min(price, self._min_price) if self._min_price is not None else price
+
+        def normalization_data(self, window_size: int) -> list[tuple[list[float], float]]:
+            """:return: The normalization result of training data in sliding window format."""
+            prices = [(price - self._min_price) / (self._max_price - self._min_price) for price in self.prices]
+            return [(prices[index - window_size - 1 : -1], prices[-1]) for index in range(window_size, len(prices))]
+
+    # Special treat the first line of data. Make sure arguments are assigned before used.
+    name: str = table[1][data_index['name']]
+    data_subset: TrainingDataSubset = TrainingDataSubset()
+    for data in table[1:]:
+        data = tuple(unit.strip() for unit in data.split(','))
+        if data[data_index['name']] == name:
+            # TODO: Check the date and create lack data using linear interpolation.
+            data_subset.add(float(data[data_index['price']]))
+        else:
+            dataset[name] = data_subset.normalization_data(sliding_window_size)
+            logging.debug(f'Finish loading the prices data of {name}.')
+            name, data_subset = data[data_index['name']], TrainingDataSubset()
+
+    return dataset
+
 
 def create_logger(
     name: str,

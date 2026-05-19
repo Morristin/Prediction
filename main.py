@@ -1,6 +1,6 @@
 import logging
 
-from training import TorchTrainer
+from train import TorchTrainer
 
 logging.getLogger(__name__)
 

@@ -58,22 +58,26 @@ class TorchTrainer:
 
         self.model = PricePredictNeuralNetwork().to(self.device)
 
-    def load_data(self, file: str, /, sliding_window_size: int = SLIDING_WINDOW_SIZE):
+    def load_model(self, file: str):
+        self.model.load_state_dict(torch.load(file, weights_only=True))
+        logging.info(f'Loaded model state dict from {file}.')
+
+    def create_dataset(self, data_source: str, /, sliding_window_size: int = SLIDING_WINDOW_SIZE):
         """
         Detect and calculate tensor data from CSV file.
 
         **This function would not handle exceptions**.
         Callers need to handle exceptions themselves or make sure source file is valid.
 
-        :param file: A CSV file which column header contains `name`, `price` and `date`.
+        :param data_source: A CSV file which column header contains `name`, `price` and `date`.
         :param sliding_window_size: The size of sliding window when split data into units.
         """
 
         training_data: list[tuple[list[float], float]] = list()
         test_data: list[tuple[list[float], float]] = list()
 
-        table = open(file, 'r').readlines()
-        logging.info(f'Read table from file: {file}')
+        table = open(data_source, 'r').readlines()
+        logging.info(f'Read table from file: {data_source}')
 
         # Process the column header of CSV file.
         column_header = tuple(unit.strip().lower() for unit in table[0].split(','))
@@ -121,10 +125,7 @@ class TorchTrainer:
         self.training_data, self.test_data = PriceDataset(training_data), PriceDataset(test_data)
         logging.info('Created training and testing Dataset.')
 
-    def load_model(self, file: str):
-        self.model.load_state_dict(torch.load(file, weights_only=True))
-
-    def load_dataset(self):
+    def create_dataloader(self):
         self.train_dataloader = DataLoader(self.training_data, batch_size=32)
         self.test_dataloader = DataLoader(self.test_data, batch_size=32)
         logging.info('Created training and testing DataLoader from Dataset.')
@@ -175,9 +176,6 @@ class TorchTrainer:
                     test_loss += loss_function(prediction, y).item()
             train_logger.info(f'Test average loss: {test_loss / num_batches:>7f}.\n')
 
-    def store(self, file: str = 'model.pth'):
-        torch.save(self.model.state_dict(), file)
-
     # noinspection PyPep8Naming
     def evaluate(self) -> tuple[float, float]:
         self.model.eval()
@@ -193,3 +191,7 @@ class TorchTrainer:
         root_mean_absolute_error = torch.sqrt(torch.mean((torch.cat(predictions) - torch.cat(targets)) ** 2)).item()
 
         return mean_absolute_error, root_mean_absolute_error
+
+    def save_model(self, file: str = 'model.pth'):
+        torch.save(self.model.state_dict(), file)
+        logging.info(f'Saved model state dict to {file}.')

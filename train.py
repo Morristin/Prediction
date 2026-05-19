@@ -78,7 +78,7 @@ class TorchTrainer(Model):
         training_data: list[tuple[list[float], float]] = list()
         test_data: list[tuple[list[float], float]] = list()
 
-        for _, data in dataset:
+        for _, data in dataset.items():
             split_point: int = int(len(data) * self.TRAINING_AND_TEST_SPLIT_POINT)
             training_data += data[:split_point]
             test_data += data[split_point:]

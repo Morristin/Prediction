@@ -15,7 +15,7 @@ class PriceDataset(Dataset):
 
     def __getitem__(self, index) -> tuple[torch.Tensor, torch.Tensor]:
         x, y = self.data[index]
-        return torch.tensor(x, dtype=torch.float32).unsqueeze(1), torch.tensor(y, dtype=torch.float32)
+        return torch.tensor(x, dtype=torch.float32).unsqueeze(1), torch.tensor(y, dtype=torch.float32).unsqueeze(0)
 
 
 class PricePredictNeuralNetwork(torch.nn.Module):
@@ -116,7 +116,7 @@ class TorchTrainer(Model):
 
                 # Compute prediction error
                 prediction = self.model(X)
-                loss = loss_function(prediction, y.unsqueeze(1))
+                loss = loss_function(prediction, y)
 
                 # Backpropagation
                 loss.backward()

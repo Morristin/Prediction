@@ -18,6 +18,26 @@ class PriceDataset(Dataset):
         return torch.tensor(x, dtype=torch.float32), torch.tensor(y, dtype=torch.float32)
 
 
+class PricePredictNeuralNetwork(torch.nn.Module):
+    HIDDEN_SIZE = 64
+    NUM_LAYERS = 2
+    DROPOUT = 0.0
+
+    def __init__(self):
+        super().__init__()
+        self.lstm = torch.nn.LSTM(
+            input_size=1,
+            hidden_size=self.HIDDEN_SIZE,
+            num_layers=self.NUM_LAYERS,
+            batch_first=True,
+            dropout=self.DROPOUT,
+        )
+        self.linear = torch.nn.Linear(in_features=self.HIDDEN_SIZE, out_features=1)
+
+    def forward(self, x):
+        return self.linear(self.lstm(x)[0][:, -1, :])
+
+
 class TorchTrainer:
     SLIDING_WINDOW_SIZE = 30
     TRAINING_AND_TEST_SPLIT_POINT = 0.8

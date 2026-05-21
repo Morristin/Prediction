@@ -38,7 +38,7 @@ class PricePredictNeuralNetwork(torch.nn.Module):
         return self.linear(self.lstm(x)[0][:, -1, :])
 
 
-class Model:
+class PyTorchModel:
     def __init__(self):
         accelerator = torch.accelerator.current_accelerator()
         if accelerator is not None:
@@ -59,7 +59,7 @@ class Model:
         logging.info(f'Saved model state dict to {file}.')
 
 
-class TorchTrainer(Model):
+class LSTMTrainer(PyTorchModel):
     SLIDING_WINDOW_SIZE = 30
     TRAINING_AND_TEST_SPLIT_POINT = 0.8
     EPOCHS = 5
@@ -71,17 +71,9 @@ class TorchTrainer(Model):
         self.train_dataloader, self.test_dataloader = None, None
 
     def load_data(self, data_source: str, /, sliding_window_size: int = SLIDING_WINDOW_SIZE):
-        from tools import load_data
+        from tools import load_split_data
 
-        dataset = load_data(data_source, sliding_window_size)
-
-        training_data: list[tuple[list[float], float]] = list()
-        test_data: list[tuple[list[float], float]] = list()
-
-        for _, data in dataset.items():
-            split_point: int = int(len(data) * self.TRAINING_AND_TEST_SPLIT_POINT)
-            training_data += data[:split_point]
-            test_data += data[split_point:]
+        training_data, test_data = load_split_data(data_source, sliding_window_size, self.TRAINING_AND_TEST_SPLIT_POINT)
 
         self.training_data, self.test_data = PriceDataset(training_data), PriceDataset(test_data)
         logging.info('Created training and testing Dataset.')
@@ -157,5 +149,38 @@ class TorchTrainer(Model):
 
         mean_absolute_error = torch.mean(torch.abs(torch.cat(predictions) - torch.cat(targets))).item()
         root_mean_absolute_error = torch.sqrt(torch.mean((torch.cat(predictions) - torch.cat(targets)) ** 2)).item()
+
+        return mean_absolute_error, root_mean_absolute_error
+
+
+class RandomForestTrainer:
+    N_ESTIMATORS = 100
+    RANDOM_STATE = 42
+
+    SLIDING_WINDOW_SIZE = 30
+    TRAINING_AND_TEST_SPLIT_POINT = 0.8
+
+    def __init__(self):
+        from sklearn.ensemble import RandomForestRegressor
+
+        self.model = RandomForestRegressor(n_estimators=self.N_ESTIMATORS, random_state=self.RANDOM_STATE)
+        self.training_data, self.test_data = None, None
+
+    def load_data(self, data_source: str, /, sliding_window_size: int = SLIDING_WINDOW_SIZE):
+        from tools import load_split_data
+
+        self.training_data, self.test_data = load_split_data(
+            data_source, sliding_window_size, self.TRAINING_AND_TEST_SPLIT_POINT
+        )
+
+    def train(self):
+        self.model.fit([x for x, y in self.training_data], [y for x, y in self.training_data])
+
+    def evaluate(self) -> tuple[float, float]:
+        predictions = self.model.predict([x for x, y in self.test_data])
+        targets = [y for x, y in self.test_data]
+
+        mean_absolute_error = sum(abs(a - b) for a, b in zip(predictions, targets)) / len(targets)
+        root_mean_absolute_error = (sum((a - b) ** 2 for a, b in zip(predictions, targets)) / len(targets)) ** 0.5
 
         return mean_absolute_error, root_mean_absolute_error

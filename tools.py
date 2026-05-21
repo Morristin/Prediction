@@ -81,6 +81,22 @@ def load_data(data_source: str, sliding_window_size: int) -> dict[str, list[tupl
     return dataset
 
 
+def load_split_data(
+    data_source: str, sliding_window_size: int, train_and_test_split_point: float
+) -> tuple[list[tuple[list[float], float]], list[tuple[list[float], float]]]:
+
+    training_data: list[tuple[list[float], float]] = list()
+    test_data: list[tuple[list[float], float]] = list()
+
+    dataset = load_data(data_source, sliding_window_size)
+    for _, data in dataset.items():
+        split_point: int = int(len(data) * train_and_test_split_point)
+        training_data += data[:split_point]
+        test_data += data[split_point:]
+
+    return training_data, test_data
+
+
 def create_logger(
     name: str,
     /,

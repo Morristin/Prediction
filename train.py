@@ -70,7 +70,7 @@ class TorchTrainer(Model):
         self.training_data, self.test_data = None, None
         self.train_dataloader, self.test_dataloader = None, None
 
-    def create_dataset(self, data_source: str, /, sliding_window_size: int = SLIDING_WINDOW_SIZE):
+    def load_data(self, data_source: str, /, sliding_window_size: int = SLIDING_WINDOW_SIZE):
         from tools import load_data
 
         dataset = load_data(data_source, sliding_window_size)
@@ -86,7 +86,6 @@ class TorchTrainer(Model):
         self.training_data, self.test_data = PriceDataset(training_data), PriceDataset(test_data)
         logging.info('Created training and testing Dataset.')
 
-    def create_dataloader(self):
         self.train_dataloader = DataLoader(self.training_data, batch_size=32)
         self.test_dataloader = DataLoader(self.test_data, batch_size=32)
         logging.info('Created training and testing DataLoader from Dataset.')

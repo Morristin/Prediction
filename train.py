@@ -92,7 +92,7 @@ class TorchTrainer(Model):
         logging.info('Created training and testing DataLoader from Dataset.')
 
     # noinspection PyPep8Naming
-    def train(self):
+    def train(self, auto_save: bool = True):
         # Predefine arguments model, loss_function and optimizer.
         logging.info(f'Move neural network model into device: {self.device.type}')
         loss_function = torch.nn.MSELoss()
@@ -102,7 +102,8 @@ class TorchTrainer(Model):
         from tools import create_logger
 
         train_logger = create_logger('training_process')
-        OUTPUT_FREQUENCY = 1000
+        OUTPUT_FREQUENCY = 200
+        previous_test_loss = 0
 
         # Train model over several epochs for better predictions.
         for epoch in range(self.EPOCHS):
@@ -136,6 +137,13 @@ class TorchTrainer(Model):
                     prediction = self.model(X)
                     test_loss += loss_function(prediction, y).item()
             train_logger.info(f'Test average loss: {test_loss / num_batches:>7f}.\n')
+
+            # Save model if the average loss is the lowest.
+            if epoch == 1 or test_loss / num_batches < previous_test_loss:
+                previous_test_loss = test_loss / num_batches
+                self.save_state()
+                train_logger.info('Auto saved model as test average loss is the lowest ever.')
+                logging.info('Auto saved model with the lowest test average loss.')
 
     # noinspection PyPep8Naming
     def evaluate(self) -> tuple[float, float]:
